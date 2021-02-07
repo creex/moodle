@@ -114,8 +114,10 @@ class EvalMath {
         'average'=>array(-1), 'max'=>array(-1),  'min'=>array(-1),
         'mod'=>array(2),      'pi'=>array(0),    'power'=>array(2),
         'round'=>array(1, 2), 'sum'=>array(-1), 'rand_int'=>array(2),
-        'rand_float'=>array(0), 'ifthenelse'=>array(3), 'cond_and'=>array(-1), 'cond_or'=>array(-1));
+        'rand_float'=>array(0), 'ifthenelse'=>array(3), 'cond_and'=>array(-1), 'cond_or'=>array(-1),
+        'blank'=>array(0), 'isblank'=>array(-1));
     var $fcsynonyms = array('if' => 'ifthenelse', 'and' => 'cond_and', 'or' => 'cond_or');
+    var $acceptsnullparameters = array('ifthenelse', 'isblank');
 
     var $allowimplicitmultiplication;
 
@@ -408,7 +410,7 @@ class EvalMath {
                 $fnn = $token['fnn'];
                 $count = $token['argcount'];
                 if (in_array($fnn, $this->fb)) { // built-in function:
-                    if (is_null($op1 = $stack->pop())) return $this->trigger(get_string('internalerror', 'mathslib'));
+                    if (($op1 = $this->pop($stack)) === false) return $this->trigger(get_string('internalerror', 'mathslib'));
                     $fnn = preg_replace("/^arc/", "a", $fnn); // for the 'arc' trig synonyms
                     if ($fnn == 'ln') $fnn = 'log';
                     eval('$stack->push(' . $fnn . '($op1));'); // perfectly safe eval()
@@ -417,7 +419,7 @@ class EvalMath {
                     // get args
                     $args = array();
                     for ($i = $count-1; $i >= 0; $i--) {
-                        if (is_null($args[] = $stack->pop())) return $this->trigger(get_string('internalerror', 'mathslib'));
+                        if (($args[] = $this->pop($stack, in_array($fnn, $this->acceptsnullparameters))) === false) return $this->trigger(get_string('internalerror', 'mathslib'));
                     }
                     $res = call_user_func_array(array('EvalMathFuncs', $fnn), array_reverse($args));
                     if ($res === FALSE) {
@@ -428,14 +430,14 @@ class EvalMath {
                     // get args
                     $args = array();
                     for ($i = count($this->f[$fnn]['args'])-1; $i >= 0; $i--) {
-                        if (is_null($args[$this->f[$fnn]['args'][$i]] = $stack->pop())) return $this->trigger(get_string('internalerror', 'mathslib'));
+                        if (($args[$this->f[$fnn]['args'][$i]] = $this->pop($stack)) === false) return $this->trigger(get_string('internalerror', 'mathslib'));
                     }
                     $stack->push($this->pfx($this->f[$fnn]['func'], $args)); // yay... recursion!!!!
                 }
             // if the token is a binary operator, pop two values off the stack, do the operation, and push the result back on
             } elseif (in_array($token, array('+', '-', '*', '/', '^', '>', '<', '==', '<=', '>='), true)) {
-                if (is_null($op2 = $stack->pop())) return $this->trigger(get_string('internalerror', 'mathslib'));
-                if (is_null($op1 = $stack->pop())) return $this->trigger(get_string('internalerror', 'mathslib'));
+                if (($op2 = $this->pop($stack)) === false) return $this->trigger(get_string('internalerror', 'mathslib'));
+                if (($op1 = $this->pop($stack)) === false) return $this->trigger(get_string('internalerror', 'mathslib'));
                 switch ($token) {
                     case '+':
                         $stack->push($op1+$op2); break;
@@ -461,7 +463,7 @@ class EvalMath {
                 }
             // if the token is a unary operator, pop one value off the stack, do the operation, and push it back on
             } elseif ($token == "_") {
-                $stack->push(-1*$stack->pop());
+                $stack->push(-1*$this->pop($stack));
             // if the token is a number or variable, push it on the stack
             } else {
                 if (is_numeric($token)) {
@@ -478,6 +480,18 @@ class EvalMath {
         // when we're out of tokens, the stack should have a single element, the final result
         if ($stack->count != 1) return $this->trigger(get_string('internalerror', 'mathslib'));
         return $stack->pop();
+    }
+
+    function pop($stack, $returnnull = false) {
+        if ($stack->empty()) {
+            return false;
+        }
+
+        $val = $stack->pop();
+        if (is_null($val) && !$returnnull) {
+            return 0;
+        }
+        return $val;
     }
 
     // trigger an error, but nicely, if need be
@@ -513,6 +527,10 @@ class EvalMathStack {
             return $this->stack[$this->count-$n];
         }
         return null;
+    }
+
+    function empty() {
+        return $this->count == 0;
     }
 }
 
@@ -553,6 +571,20 @@ class EvalMathFuncs {
             }
         }
         return 0;
+    }
+
+    static function blank() {
+        return null;
+    }
+
+    static function isblank() {
+        $args = func_get_args();
+        foreach ($args as $a) {
+            if (!is_null($a)) {
+                return 0;
+            }
+        }
+        return 1;
     }
 
     static function average() {

@@ -2232,11 +2232,10 @@ class grade_item extends grade_object {
         }
 
         // add missing final grade values
-        // not graded (null) is counted as 0 - the spreadsheet way
         $allinputsnull = true;
         foreach($useditems as $gi) {
             if (!array_key_exists('gi'.$gi, $params) || is_null($params['gi'.$gi])) {
-                $params['gi'.$gi] = 0;
+                $params['gi'.$gi] = null;
             } else {
                 $params['gi'.$gi] = (float)$params['gi'.$gi];
                 if ($gi != $this->id) {
@@ -2303,7 +2302,7 @@ class grade_item extends grade_object {
             $this->formula->set_params($params);
             $result = $this->formula->evaluate();
 
-            if ($result === false) {
+            if ($result === false || is_null($result)) {
                 $grade->finalgrade = null;
 
             } else {

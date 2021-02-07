@@ -315,4 +315,55 @@ class core_mathslib_testcase extends basic_testcase {
         $result = $formula->evaluate();
         $this->assertTrue(is_float($result));
     }
+
+    public function test_blank() {
+        // blank() -> null
+        $formula = new calc_formula('=blank()');
+        $this->assertNull($formula->evaluate());
+
+        $formula = new calc_formula('=if(1, 1, blank())');
+        $this->assertSame(1, (int) $formula->evaluate());
+
+        $formula = new calc_formula('=if(0, 1, blank())');
+        $this->assertNull($formula->evaluate());
+    }
+
+    public function test_isblank() {
+        // isblank(a, ...) -> if all parameters are blank then 1 else 0
+        $formula = new calc_formula('=isblank(a)', array('a' => null));
+        $this->assertSame(1, $formula->evaluate());
+
+        $formula = new calc_formula('=isblank(1)', array('a' => null));
+        $this->assertSame(0, $formula->evaluate());
+
+        $formula = new calc_formula('=isblank(a, b, c)', array('a' => null, 'b' => null, 'c' => null));
+        $this->assertSame(1, $formula->evaluate());
+
+        $formula = new calc_formula('=isblank(a, b, c)', array('a' => 10, 'b' => null, 'c' => 20));
+        $this->assertSame(0, $formula->evaluate());
+    }
+
+    public function test_nullvariables() {
+        // null variables should behave like 0 in math calculations.
+        $formula = new calc_formula('=sum(a, b, c)', array('a' => 10, 'b' => null, 'c' => 20));
+        $this->assertSame(30, $formula->evaluate());
+
+        $formula = new calc_formula('=min(a, b, c)', array('a' => 10, 'b' => null, 'c' => 20));
+        $this->assertSame(0, $formula->evaluate());
+
+        $formula = new calc_formula('=max(a, b, c)', array('a' => 10, 'b' => null, 'c' => 20));
+        $this->assertSame(20, $formula->evaluate());
+
+        $formula = new calc_formula('=average(a, b, c)', array('a' => 10, 'b' => null, 'c' => 20));
+        $this->assertSame(10, $formula->evaluate()); // 30 / 3
+
+        $formula = new calc_formula('=and(a, b)', array('a' => 1, 'b' => null));
+        $this->assertSame(0, $formula->evaluate());
+
+        $formula = new calc_formula('=or(a, b)', array('a' => null, 'b' => 1));
+        $this->assertSame(1, $formula->evaluate());
+
+        $formula = new calc_formula('=round(a)', array('a' => null));
+        $this->assertSame(0.0, $formula->evaluate());
+    }
 }
